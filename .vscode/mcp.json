@@ -1,0 +1,12 @@
+{
+    "servers": {
+        "math-server": {
+            "type": "stdio",
+            "command": "uv",
+            "args": [
+                "run",
+                "maths.py"
+            ]
+        }
+    }
+}
