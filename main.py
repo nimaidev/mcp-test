@@ -2,6 +2,8 @@
 
 import asyncio
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.base import TaskResult
+from autogen_agentchat.messages import ModelClientStreamingChunkEvent
 from autogen_agentchat.teams import DiGraphBuilder, GraphFlow, RoundRobinGroupChat
 from autogen_agentchat.ui import Console
 from autogen_ext.models.anthropic import AnthropicChatCompletionClient
@@ -50,12 +52,8 @@ async def main() -> None:
         graph = builder.build()
         
         flow = GraphFlow([assistant_agent, formatting_agent], graph=graph)
-        # await Console(flow.run_stream(task="what are my cloud version"))
-        
-        # result = await workbench.call_tool(tools[0]["name"])
-        stream = flow.run_stream(task="what are my cloud version")
-        async for event in stream:  # type: ignore
-            print(event)
+                
+        await Console(flow.run_stream(task="what are my cloud version"))
         # print(result)
         
 asyncio.run(main())
