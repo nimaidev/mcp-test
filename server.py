@@ -1,79 +1,39 @@
-# main.py
-import asyncio
-from typing import Any
+import time
+from fastapi import Request
+from mcp.server import FastMCP
+import uvicorn
+from fastapi import Response
 
-from dotenv import load_dotenv
-import httpx
-from mcp import types
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
+mcp = FastMCP("iqnext-mcp")
 
-load_dotenv(override=True)
+@mcp.tool()
+def add_num(num1: int, num2: int) -> int:
+    """ 
+    Add and return sum of two numbers
+    """
+    return num1 + num2
 
-iqnext_mcp = Server("iqnext_mcp")
+app = mcp.streamable_http_app()
 
-@iqnext_mcp.list_tools()
-async def list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="get_energy_consumption_or_cost",
-            description="Get Energy consumption for specific period of time as per the user request",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "startDate": {
-                        "type": "string",
-                        "description": "A date with YYYY-MM-DD format"
-                    },
-                    "endDate": {
-                        "type": "string",
-                        "description": "A date with YYYY-MM-DD format"
-                    },
-                }
-            }
-        ),
-        types.Tool(
-            name="get_iqnext_cloud_version",
-            description="Get the IQNext Cloud version information",
-            inputSchema={
-                "type": "object",
-                "properties": {}
-            }
-        )
-    ]
+@app.middleware('http')
+async def middle(request: Request, call_next):
     
-@iqnext_mcp.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    """Handle tool calls"""
-    if name == "get_iqnext_cloud_version":
-        response = httpx.get("https://faraday.iqnext.io/api/iqnext/v1/nc/about")    
-        res = response.json()
-        if res:
-            data = res.get("success").get("data")
-            return [types.TextContent(type="text", text=str(data))]
-        return [types.TextContent(type="text", text="Failed to get cloud version")]
+    start_time = time.perf_counter()
+    print(f"Request : {request.headers}")
+    auth = request.headers.get('Authorization')
+    response = await call_next(request)
+    print(f"Auth : {auth}")
     
-    elif name == "get_energy_consumption_or_cost":
-        start_date = arguments.get("startDate", "")
-        end_date = arguments.get("endDate", "")
-        try:
-            print(f"Input DTO : {start_date} : {end_date}")
-            result = f"Energy consumption from {start_date} to {end_date} is 200kWh"
-            return [types.TextContent(type="text", text=result)]
-        except Exception as e:
-            return [types.TextContent(type="text", text=f"Failed to get energy data: {str(e)}")]
-    
+    if auth is None:
+        return Response(content="Invalid Request: Missing Authorization", status_code=401)
     else:
-        return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
+        if auth != "Bearer hello":
+            return Response(content="Invalid Request: Invalid Authorization Token", status_code=401)
+            
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
 
-async def main():
-    """Run the MCP server using stdio transport."""
-    async with stdio_server() as (read_stream, write_stream):
-        await iqnext_mcp.run(
-            read_stream, 
-            write_stream, 
-            iqnext_mcp.create_initialization_options()
-        )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

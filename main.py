@@ -6,7 +6,7 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.teams import DiGraphBuilder, GraphFlow
 from autogen_agentchat.ui import Console
 from autogen_ext.models.anthropic import AnthropicChatCompletionClient
-from autogen_ext.tools.mcp import McpWorkbench, StdioServerParams
+from autogen_ext.tools.mcp import McpWorkbench, SseServerParams, StdioServerParams, StreamableHttpServerParams
 from dotenv import load_dotenv
 import os
 
@@ -20,6 +20,14 @@ async def main() -> None:
     params = StdioServerParams(
         command="uv",
         args=["run", "-m", "server","test_serve"]
+    )
+    
+    params = StreamableHttpServerParams(
+        url="http://127.0.0.1:8000/mcp",
+        headers = {
+            'Authorization' : 'Bearer hello'
+        },
+        timeout=10
     )
 
     async with McpWorkbench(server_params=params) as workbench:
@@ -42,7 +50,14 @@ async def main() -> None:
         formatting_agent = AssistantAgent(
             name = "formatting_agent",
             model_client= model_client,
-            system_message="Your job is to format the incoming  data to nice human readable natural language"
+            system_message="""Your job is to format energy cost data into clear, human-readable language.
+
+            When you receive energy consumption data:
+            - Calculate the total cost (consumption × INR 10 per kWh)
+            - Show daily breakdown if possible
+            - Use currency formatting (INR XX.XX)
+            - Highlight key spending insights
+            - Make it conversational and easy to understand"""
         )
         
         builder = DiGraphBuilder()
@@ -53,7 +68,7 @@ async def main() -> None:
         
         flow = GraphFlow([assistant_agent, formatting_agent], graph=graph)
                 
-        await Console(flow.run_stream(task="how much I spent on energy last month"))
+        await Console(flow.run_stream(task="what 2 + 22"))
         # print(result)
         
 asyncio.run(main())
